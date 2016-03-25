@@ -6,7 +6,7 @@ import re
 import sys
 
 stopwords = ["в", "и", "я", "а", "по", "с", "у", "на", "р", "ф", "", "тот", "за", "так", "же",
-             "т", "к", "от", "при", "три", "пять"]
+             "т", "к", "от", "при", "три", "пять", "без", "для"]
 
 morph = pymorphy2.MorphAnalyzer()
 
@@ -18,7 +18,9 @@ def process_table(table):
     data = data[data[2] != ""]
     data[2] = data[2].apply(lambda x: str(x)[9:-3])
     data.columns = ["id", "label", "text"]
+    data = data.drop_duplicates(subset='text')
     data['label'] = data['label'].apply(lambda x: '1' if x == '3' or x == '4' else '0')
+
     return data
 
 def process_text(text):

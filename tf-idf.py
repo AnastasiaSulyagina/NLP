@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 import sys
-from sklearn.ensemble import RandomForestClassifier
+from sklearn import linear_model
 from sklearn.feature_extraction.text import TfidfVectorizer
 
 import preprocessing
@@ -24,14 +24,14 @@ def show_word_scores():
         print (score, word)
 #show_word_scores()
 
-forest = RandomForestClassifier(n_estimators = 100) 
-forest = forest.fit( train_data_features, data['label'] )
+clf = linear_model.LinearRegression()
+clf = clf.fit( train_data_features, data['label'] )
 
 #testing
 test_data = preprocessing.process(test_file)
 test_data_features = vectorizer.transform(test_data['text'])
 
-result = forest.predict(test_data_features)
+result = clf.predict(test_data_features)
 
 check = zip(test_data['label'], result)
 tp, tn, fp, fn = 0, 0, 0, 0
