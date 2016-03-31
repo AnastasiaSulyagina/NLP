@@ -59,7 +59,7 @@ with open(data_path + 'processed_test.txt') as f:
         test_labels.append(s[-2])
 
 test_data_features = vectorizer.transform(test_data).toarray()
-result = clf.predict(tfidf_test_features)
+result = clf.predict(test_data_features)
 check = zip(test_labels, result)
 
 def compare_results():
