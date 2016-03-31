@@ -18,9 +18,7 @@ def process_table(table):
     data = data[data[2] != ""]
     data[2] = data[2].apply(lambda x: str(x)[9:-3])
     data.columns = ["id", "label", "text"]
-    data = data.drop_duplicates(subset='text')
     data['label'] = data['label'].apply(lambda x: '1' if x == '3' or x == '4' else '0')
-
     return data
 
 def process_text(text):
@@ -29,8 +27,10 @@ def process_text(text):
     text = ' '.join(l)
     return text
 
-def process(path):
+def process(path, save_path = "$"):
     data = pd.read_csv(path, delimiter='autoru-', header = None, quoting=3, engine='python')
     data = process_table(data)
     data['text'] = data['text'].apply(lambda x: process_text(x))
+    if save_path != "$":
+        data.to_csv(save_path, sep='\t', encoding='utf-8')
     return data

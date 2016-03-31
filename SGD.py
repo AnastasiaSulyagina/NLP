@@ -3,9 +3,11 @@ import re
 import sys
 import pandas as pd
 import numpy as np
+from sklearn.decomposition import PCA
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.feature_extraction.text import TfidfTransformer
 from sklearn.svm import LinearSVC
+from sklearn import linear_model
 
 import preprocessing
 
@@ -42,10 +44,12 @@ with open(data_path + 'processed_train.txt') as f:
         labels.append(s[-2])
 
 features = vectorizer.fit_transform(data)
+
 transformer = TfidfTransformer(norm="l2")
 transformer.fit(features)
 tfidf_features = transformer.transform(features)
-clf = LinearSVC()
+
+clf = clf = linear_model.SGDClassifier(loss='squared_hinge')
 clf = clf.fit(tfidf_features, labels)
 
 # testing

@@ -19,7 +19,7 @@ def myreadlines(f, newline):
             pos = buf.index(newline)
             yield buf[:pos]
             buf = buf[pos + len(newline):]
-        chunk = f.read(1024)
+        chunk = f.read(4096)
         if not chunk:
             yield buf
             break
