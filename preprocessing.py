@@ -27,10 +27,9 @@ def process_text(text):
     text = ' '.join(l)
     return text
 
-def process(path, save_path = "$"):
+def process(path):
     data = pd.read_csv(path, delimiter='autoru-', header = None, quoting=3, engine='python')
     data = process_table(data)
     data['text'] = data['text'].apply(lambda x: process_text(x))
-    if save_path != "$":
-        data.to_csv(save_path, sep='\t', encoding='utf-8')
+    data.to_csv(save_path + ".proc.txt", sep='\t', encoding='utf-8')
     return data
