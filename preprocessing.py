@@ -5,8 +5,11 @@ import numpy as np
 import re
 import sys
 
-stopwords = ["в", "и", "я", "а", "по", "с", "у", "на", "р", "ф", "", "тот", "за", "так", "же",
-             "т", "к", "от", "при", "три", "пять", "без", "для"]
+stopwords_file = "data/stopwords"
+stopwords = []
+with open(stopwords_file, "r") as f:
+    s = f.read()
+    stopwords = s.split(',')
 
 morph = pymorphy2.MorphAnalyzer()
 

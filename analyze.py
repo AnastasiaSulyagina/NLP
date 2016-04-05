@@ -9,7 +9,9 @@ from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.feature_extraction.text import TfidfTransformer
 from sklearn.cross_validation import StratifiedKFold
 from sklearn.metrics import roc_curve, auc
-from sklearn import linear_model
+from xgboost.sklearn import XGBClassifier
+from sklearn import linear_model, metrics
+from sklearn.svm import *
 from scipy import interp
 
 import preprocessing
@@ -58,39 +60,45 @@ transformer = TfidfTransformer()
 tfidf_features = transformer.fit(features).transform(features)
 
 # testing
-def show_roc():
+def show_roc(classifier, with_probas):
 
     X = np.array(tfidf_features.todense())
     y = np.array(labels).astype(int)
-    cv = StratifiedKFold(y, n_folds=5)
-    classifier = linear_model.SGDClassifier(loss='squared_hinge')
+    cv = StratifiedKFold(y, n_folds=2)
     for i, (train, test) in enumerate(cv):
-        res = classifier.fit(X[train], y[train]).predict(X[test])
+        clf = classifier.fit(X[train], y[train])
+        res = clf.predict(X[test])
+        if with_probas:
+            res_p = clf.predict_proba(X[test])
 
-        fpr, tpr, _ = roc_curve(y[test], res)
-        roc_auc = auc(fpr, tpr)
-        plt.plot(fpr, tpr, lw=1, label='ROC fold %d (area = %0.2f)' % (i, roc_auc))
-
+            fpr, tpr, _ = roc_curve(y[test], res_p[:,1])
+            roc_auc = auc(fpr, tpr)
+            plt.plot(fpr, tpr, lw=1, label='ROC fold %d (area = %0.2f)' % (i, roc_auc))
         check = zip(y[test], res)
         tp, tn, fp, fn = 0, 0, 0, 0
-        for value, prediction in check:
-            if value == prediction:
-                tp += value # value 1 or 0
-                tn += 1 - value
-            else:
-                fn += value
-                tn += 1 - value
-        print ('TP: {0}, TN: {1}, FP: {2}, FN: {3}'.format(tp, tn, fp, fn))
-        print ("precision: " + str(tp / (tp + fp if tp + fp != 0 else 0.0000000000001)))
-        print ("recall: " + str(tp / (tp + fn if tp + fn != 0 else 0.0000000000001)))
+        #for value, prediction in check:
+        #    if value == prediction:
+        #        tp += value # value 1 or 0
+        #        tn += 1 - value
+        #    else:
+        #        fp += value
+        #        fn += 1 - value
+        #print ('TP: {0}, TN: {1}, FP: {2}, FN: {3}'.format(tp, tn, fp, fn))
+        print ("Precision Score : %f" % metrics.precision_score(y[test], res))
+        print ("Recall Score : %f" % metrics.recall_score(y[test], res))
 
+    if with_probas:
+        plt.plot([0, 1], [0, 1], '--', color=(0.6, 0.6, 0.6), label='Luck')
+        plt.xlim([-0.05, 1.05])
+        plt.ylim([-0.05, 1.05])
+        plt.xlabel('False Positive Rate')
+        plt.ylabel('True Positive Rate')
+        plt.title('Receiver operating characteristic example')
+        plt.legend(loc="lower right")
+        plt.show()
 
-    plt.plot([0, 1], [0, 1], '--', color=(0.6, 0.6, 0.6), label='Luck')
-    plt.xlim([-0.05, 1.05])
-    plt.ylim([-0.05, 1.05])
-    plt.xlabel('False Positive Rate')
-    plt.ylabel('True Positive Rate')
-    plt.title('Receiver operating characteristic example')
-    plt.legend(loc="lower right")
-    plt.show()
-show_roc()
+show_roc(XGBClassifier(learning_rate =0.03, n_estimators=150, max_depth=6,
+ min_child_weight=4, gamma=0.1, subsample=0.8, colsample_bytree=0.8,
+ objective= 'binary:logistic', nthread=4, scale_pos_weight=1, seed=27), True)
+
+#show_roc(linear_model.SGDClassifier(loss='squared_hinge'), False)
