@@ -5,14 +5,15 @@ import argparse
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-from sklearn.feature_extraction.text import CountVectorizer
-from sklearn.feature_extraction.text import TfidfTransformer
+from sklearn.feature_extraction.text import CountVectorizer, TfidfTransformer
 from sklearn.cross_validation import StratifiedKFold
 from sklearn.metrics import roc_curve, auc
 from xgboost.sklearn import XGBClassifier
+from sklearn.ensemble import RandomForestClassifier, ExtraTreesClassifier
 from sklearn import linear_model, metrics
 from sklearn.svm import *
 from scipy import interp
+from math import log
 
 #import preprocessing
 import chunks
@@ -81,13 +82,14 @@ def preprocess(data):
         for j in range(len(data[0])):
             if data[i][j] != 0:
                 val = (bad[vocab[j]] if vocab[j] in bad else len(bad) / (good[vocab[j]] if vocab[j] in good else len(good)))
-                data[i][j] = np.float32(data[i][j] * val)
+                data[i][j] = log(data[i][j] * val)
             if not np.isfinite(data[i][j]):
                 print(vocab[j])
+    return data
 
 # testing
 def show_roc(classifier, with_probas):
-    cv = StratifiedKFold(labels, n_folds=5)
+    cv = StratifiedKFold(labels[:-1], n_folds=5)
 
     for i, (train, test) in enumerate(cv):
         vectorizer = CountVectorizer(vocabulary=vocab)
@@ -98,13 +100,12 @@ def show_roc(classifier, with_probas):
 
         X = preprocess(features.toarray())
         y = labels[train]
-        # падает тут, проблема где-то в preprocess
         clf = classifier.fit(X, y)
 
         t_features = vectorizer.transform(data[test])
         t_f = preprocess(t_features.toarray())
         t_labels = labels[test]
-        res = clf.predict(t_features)
+        res = clf.predict(t_f)
 
         if with_probas:
             res_p = clf.predict_proba(t_features)
@@ -112,7 +113,7 @@ def show_roc(classifier, with_probas):
             roc_auc = auc(fpr, tpr)
             plt.plot(fpr, tpr, lw=1, label='ROC fold %d (area = %0.2f)' % (i, roc_auc))
 
-        check = zip(y[test], res)
+        check = zip(t_labels, res)
         tp, tn, fp, fn = 0, 0, 0, 0
         for value, prediction in check:
             if (prediction and value):
@@ -141,4 +142,6 @@ def show_roc(classifier, with_probas):
 # min_child_weight=4, gamma=0.1, subsample=0.8, colsample_bytree=0.8,
 # objective= 'binary:logistic', nthread=4, scale_pos_weight=1, seed=27), True)
 
-show_roc(linear_model.SGDClassifier(loss='squared_hinge'), False)
+#show_roc(linear_model.SGDClassifier(loss='squared_hinge'), False)
+#show_roc(RandomForestClassifier(n_estimators=10), True)
+show_roc(ExtraTreesClassifier(n_estimators=10, max_depth=None, min_samples_split=1, random_state=0), True)
