@@ -6,10 +6,11 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.feature_extraction.text import CountVectorizer, TfidfTransformer
-from sklearn.cross_validation import StratifiedKFold
+from sklearn.cross_validation import StratifiedKFold, train_test_split
+from sklearn.preprocessing import OneHotEncoder
 from sklearn.metrics import roc_curve, auc
 from xgboost.sklearn import XGBClassifier
-from sklearn.ensemble import RandomForestClassifier, ExtraTreesClassifier
+from sklearn.ensemble import RandomForestClassifier, ExtraTreesClassifier, GradientBoostingClassifier
 from sklearn import linear_model, metrics
 from sklearn.svm import *
 from scipy import interp
@@ -57,8 +58,8 @@ def get_data(input, flag):
     return data, labels
 
 data, labels = get_data(train_file, args.proc_train)
-#test_data, test_labels = get_data(test_file, args.proc_test)
-data, labels  = np.array(data), np.array(labels).astype(int)
+test_data, test_labels = get_data(test_file, args.proc_test)
+data, labels  = np.array(data + test_data), np.array(labels + test_labels).astype(int)
 inv_labels = np.logical_not(labels)
 
 def get_word_frequencies(some_data, out_file):
@@ -92,28 +93,43 @@ def show_roc(classifier, with_probas):
     cv = StratifiedKFold(labels[:-1], n_folds=5)
 
     for i, (train, test) in enumerate(cv):
+
         vectorizer = CountVectorizer(vocabulary=vocab)
         features = vectorizer.fit_transform(data[train])
         #transformer = TfidfTransformer()
         #tfidf_features = transformer.fit(features).transform(features)
         #X = np.array(tfidf_features.todense())
 
-        X = preprocess(features.toarray())
+        #X = preprocess(features.toarray())
+        X = features.toarray()
         y = labels[train]
-        clf = classifier.fit(X, y)
 
-        t_features = vectorizer.transform(data[test])
-        t_f = preprocess(t_features.toarray())
-        t_labels = labels[test]
-        res = clf.predict(t_f)
+        X, X1, y, y1 = train_test_split(X, y, test_size=0.5)
+        clf1 = RandomForestClassifier(n_estimators=20)
+        enc = OneHotEncoder()
+        clf2 = RandomForestClassifier(n_estimators=10)
+        clf1.fit(X, y)
+        enc.fit(clf1.apply(X))
+        clf2.fit(enc.transform(clf1.apply(X1)), y1)
+
+      
+        #clf = classifier.fit(X, y)
+
+        X_test = vectorizer.transform(data[test])
+        #t_f = preprocess(t_features.toarray())
+        y_test = labels[test]
+        #res = clf.predict(t_f)
+        
+        res = clf2.predict(enc.transform(clf1.apply(X_test)))  
 
         if with_probas:
-            res_p = clf.predict_proba(t_features)
-            fpr, tpr, _ = roc_curve(t_labels, res_p[:,1])
+            res_p = clf2.predict_proba(enc.transform(clf1.apply(X_test)))
+            #res_p = clf.predict_proba(t_features)
+            fpr, tpr, _ = roc_curve(y_test, res_p[:,1])
             roc_auc = auc(fpr, tpr)
             plt.plot(fpr, tpr, lw=1, label='ROC fold %d (area = %0.2f)' % (i, roc_auc))
 
-        check = zip(t_labels, res)
+        check = zip(y_test, res)
         tp, tn, fp, fn = 0, 0, 0, 0
         for value, prediction in check:
             if (prediction and value):
@@ -125,8 +141,10 @@ def show_roc(classifier, with_probas):
             if (not prediction and not value):
                 tn += 1
         print ('TP: {0}, TN: {1}, FP: {2}, FN: {3}'.format(tp, tn, fp, fn))
-        print ("Precision Score : %f" % metrics.precision_score(t_labels, res))
-        print ("Recall Score : %f" % metrics.recall_score(t_labels, res))
+        print ("Precision Score : %f" % metrics.precision_score(y_test, res))
+        print ("Recall Score : %f" % metrics.recall_score(y_test, res))
+        print ("Accuracy : %.4g" % metrics.accuracy_score(y_test, res))
+        print ("AUC Score (Train): %f" % metrics.roc_auc_score(y_test, res))
 
     if with_probas:
         plt.plot([0, 1], [0, 1], '--', color=(0.6, 0.6, 0.6), label='Luck')
@@ -144,4 +162,5 @@ def show_roc(classifier, with_probas):
 
 #show_roc(linear_model.SGDClassifier(loss='squared_hinge'), False)
 #show_roc(RandomForestClassifier(n_estimators=10), True)
-show_roc(ExtraTreesClassifier(n_estimators=10, max_depth=None, min_samples_split=1, random_state=0), True)
+show_roc(GradientBoostingClassifier(n_estimators=100, learning_rate=1.0, max_depth=1, random_state=0), True)
+#show_roc(ExtraTreesClassifier(n_estimators=10, max_depth=None, min_samples_split=1, random_state=0), True)
