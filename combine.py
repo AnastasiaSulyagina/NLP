@@ -15,6 +15,8 @@ from sklearn.preprocessing import OneHotEncoder
 from sklearn.ensemble import RandomTreesEmbedding, RandomForestClassifier, ExtraTreesClassifier, GradientBoostingClassifier
 from sklearn import linear_model, metrics
 from sklearn.pipeline import make_pipeline
+from sklearn.linear_model import LogisticRegression
+from sklearn.naive_bayes import GaussianNB
 from sklearn.svm import *
 from scipy import interp
 from math import log
@@ -47,7 +49,7 @@ def get_data(input, flag):
     data, labels = [], []
     if flag:
         train_data = preprocessing.process(test_file)
-        data, labels = train_data['text'], train_data['labels']
+        data, labels = np.array(train_data['text']), np.array(train_data['labels']).astype(int)
     else:
         with open(train_file) as f:
             gen = chunks.read_chunk(f, "\n")
@@ -56,13 +58,11 @@ def get_data(input, flag):
                 s = next(gen).split('\t')
                 data.append(s[-1])
                 labels.append(s[-2])
-    return data, labels
+    return np.array(data), np.array(labels).astype(int)
 
 data, labels = get_data(train_file, args.proc_train)
 test_data, test_labels = get_data(test_file, args.proc_test)
-data, labels  = np.array(data), np.array(labels).astype(int)
 inv_labels = np.logical_not(labels)
-test_data, test_labels  = np.array(test_data), np.array(test_labels).astype(int)
 
 def get_word_frequencies(some_data, out_file):
     word_freq = {}
@@ -108,33 +108,63 @@ def boost(X, y, X_test, y_test):
 def stack(X, y, X_test, y_test):
     X, X1, y, y1 = train_test_split(X, y, test_size=0.5)
     #clf1 = GradientBoostingClassifier(n_estimators=10)
-    clf1 = RandomForestClassifier(n_estimators=20)
+    #clf1 = RandomForestClassifier(n_estimators=20)
+    clf1 = ExtraTreesClassifier(n_estimators=10, max_depth=None, min_samples_split=1, random_state=0)
+    clf2 = linear_model.SGDClassifier(loss='log')
     enc = OneHotEncoder()
-    clf2 = RandomForestClassifier(n_estimators=10)
+    #clf2 = RandomForestClassifier(n_estimators=10)
+    #clf2 = GradientBoostingClassifier(n_estimators=20)
     clf1.fit(X, y)
     enc.fit(clf1.apply(X))
     clf2.fit(enc.transform(clf1.apply(X1)), y1)
 
     #prob = clf2.predict_proba(enc.transform(clf1.apply(X_test)[:, :, 0]))[:, 1]
-    prob = clf2.predict_proba(enc.transform(clf1.apply(X_test)))[:, 1]
-    res = clf2.predict(enc.transform(clf1.apply(X_test)))
+
+    prob = clf2.predict_proba(enc.transform(clf1.apply(X_test)).toarray())[:, 1]
+    res = clf2.predict(enc.transform(clf1.apply(X_test)))        
+    check = zip(y_test, res)
+    tp, tn, fp, fn = 0, 0, 0, 0
+    for value, prediction in check:
+        if (prediction and value):
+            tp += 1
+        if (prediction and not value):
+            fp += 1
+        if (not prediction and value):
+            fn += 1
+        if (not prediction and not value):
+            tn += 1
+    print ('TP: {0}, TN: {1}, FP: {2}, FN: {3}'.format(tp, tn, fp, fn))
     print ("Precision Score : %f" % metrics.precision_score(y_test, res))
     print ("Recall Score : %f" % metrics.recall_score(y_test, res))
     return roc_curve(y_test, prob)
+def vote(X, y, X_test, y_test):
+    X, X1, y, y1 = train_test_split(X, y, test_size=0.5)
+    clf1 = linear_model.SGDClassifier(loss='squared_hinge')
+    clf2 = XGBClassifier(learning_rate =0.03, n_estimators=150, max_depth=6,
+                         min_child_weight=4, gamma=0.1, subsample=0.8, colsample_bytree=0.8,
+                         objective= 'binary:logistic', nthread=4, scale_pos_weight=1, seed=27)
+    clf3 = GaussianNB()
+    eclf = VotingClassifier(estimators=[('lr', clf1), ('rf', clf2), ('gnb', clf3)], voting='hard')
+    for clf, label in zip([clf1, clf2, clf3, eclf], ['Logistic Regression', 'Random Forest', 'naive Bayes', 'Ensemble']):
+        clf.fit(X, y)
+        res = clf.predict(X_test)
+        print ("Precision Score : %f" % metrics.precision_score(y_test, res))
+        print ("Recall Score : %f" % metrics.recall_score(y_test, res))
 
 vectorizer = CountVectorizer(vocabulary=vocab)
 features = vectorizer.fit_transform(data)
-#transformer = TfidfTransformer()
-#tfidf_features = transformer.fit(features).transform(features)
+transformer = TfidfTransformer()
+tfidf_features = transformer.fit(features).transform(features)
 
 t_features = vectorizer.transform(test_data)
-X = features.toarray()
+X = tfidf_features.toarray()
 
-fpr, tpr, _ = stack(X, labels, t_features, test_labels)
+#fpr, tpr, _ = 
+vote(X, labels, t_features.toarray(), test_labels)
 
 def draw():
     plt.plot([0, 1], [0, 1], 'k--')
-    plt.plot(fpr, tpr, label='')
+    plt.plot(fpr, tpr, label='plot')
     plt.xlabel('False positive rate')
     plt.ylabel('True positive rate')
     plt.title('ROC curve')
