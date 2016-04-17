@@ -45,15 +45,14 @@ with open(stopwords_file, "r") as f:
     s = f.read()
     stopwords = s.split(',')
 
-def get_data(input, flag):
+def get_data(input_file, flag):
     data, labels = [], []
     if flag:
-        train_data = preprocessing.process(test_file)
-        data, labels = np.array(train_data['text']), np.array(train_data['labels']).astype(int)
+        all_data = preprocessing.process(input_file)
+        data, labels = np.array(all_data['text']), np.array(all_data['labels']).astype(int)
     else:
-        with open(train_file) as f:
+        with open(input_file) as f:
             gen = chunks.read_chunk(f, "\n")
-            # поправлю 40к когда придумаю на что
             for i in range(40000):
                 s = next(gen).split('\t')
                 data.append(s[-1])
